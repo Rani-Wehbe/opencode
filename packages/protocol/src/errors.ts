@@ -316,9 +316,3 @@ export class ProviderRequestError extends Schema.TaggedError<ProviderRequestErro
   },
   { httpApiStatus: 502 },
 ) {}
-
-export class NotImplementedError extends Schema.TaggedError<NotImplementedError>()(
-  "NotImplementedError",
-  { message: Schema.String },
-  { httpApiStatus: 501 },
-) {}
