@@ -18,16 +18,10 @@ export interface TextInput {
   readonly model?: Model.Ref
 }
 
-export class ModelSelectionError extends Schema.TaggedError<ModelSelectionError>()("Generate.ModelSelectionError", {
-  message: Schema.String,
-}) {}
-
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
   message: Schema.String,
   service: Schema.optional(Schema.String),
 }) {}
-
-export type Error = ModelSelectionError | UnavailableError
 
 export class ModelNotFoundError extends Schema.TaggedError<ModelNotFoundError>()("Generate.ModelNotFoundError", {
   providerID: Schema.String,
@@ -69,7 +63,7 @@ export class ProviderRequestError extends Schema.TaggedError<ProviderRequestErro
   retryAfterMs: Schema.optional(Schema.Int),
 }) {}
 
-export type MediaError =
+export type Error =
   | ModelNotFoundError
   | UnsupportedModelError
   | InvalidRequestError
@@ -78,8 +72,8 @@ export type MediaError =
 
 export interface Interface {
   readonly text: (input: TextInput) => Effect.Effect<string, Error>
-  readonly image: (input: ImageRequest) => Effect.Effect<ImageResult, MediaError>
-  readonly decisions: (input: DecisionRequest) => Effect.Effect<DecisionResult, MediaError>
+  readonly image: (input: ImageRequest) => Effect.Effect<ImageResult, Error>
+  readonly decisions: (input: DecisionRequest) => Effect.Effect<DecisionResult, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Generate") {}
@@ -96,30 +90,29 @@ export const layer = Layer.effect(
     const decisionClient = yield* DecisionClient.Service
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
-      const resolved = yield* resolver.resolve(input.model).pipe(
-        Effect.catchTag(
-          [
-            "SessionRunnerModel.VariantUnavailableError",
-            "SessionRunnerModel.UnsupportedPackageError",
-            "SessionRunnerModel.ModelConfigurationError",
-            "SessionRunnerModel.ModelInitializationError",
-            "SessionRunnerModel.UnresolvedProviderVariablesError",
-            "SessionRunnerModel.UnsupportedCompactionError",
-          ],
-          (error) => {
-            const mapped: Error = input.model
-              ? new ModelSelectionError({ message: error.message })
-              : new UnavailableError({ message: error.message, service: error.providerID })
-            return Effect.fail(mapped)
-          },
-        ),
-      )
+      const resolved = yield* resolver
+        .resolve(input.model)
+        .pipe(
+          Effect.catchTag(
+            [
+              "SessionRunnerModel.VariantUnavailableError",
+              "SessionRunnerModel.UnsupportedPackageError",
+              "SessionRunnerModel.ModelConfigurationError",
+              "SessionRunnerModel.ModelInitializationError",
+              "SessionRunnerModel.UnresolvedProviderVariablesError",
+              "SessionRunnerModel.UnsupportedCompactionError",
+            ],
+            (error) =>
+              Effect.fail(
+                input.model
+                  ? resolutionError(input.model, "chat", error)
+                  : new UnavailableError({ message: error.message, service: error.providerID }),
+              ),
+          ),
+        )
+      if (!resolved && input.model) return yield* missing(input.model, "chat")
       if (!resolved)
-        return yield* new ModelSelectionError({
-          message: input.model
-            ? `Model unavailable: ${input.model.providerID}/${input.model.id}`
-            : "No model specified and no supported model is available",
-        })
+        return yield* new UnavailableError({ message: "No model specified and no supported model is available" })
       const response = yield* llm
         .generate(
           LLM.request({
@@ -131,13 +124,7 @@ export const layer = Layer.effect(
         )
         .pipe(
           ModelRetry.retry,
-          Effect.mapError(
-            (error: AIError) =>
-              new UnavailableError({
-                message: error.message,
-                service: resolved.ref.providerID,
-              }),
-          ),
+          Effect.mapError((error) => providerError(resolved.ref, error)),
         )
       return response.text
     })
@@ -163,6 +150,11 @@ export const layer = Layer.effect(
     ) {
       const resolved = yield* resolve(ref).pipe(Effect.mapError((error) => resolutionError(ref, type, error)))
       if (resolved) return resolved
+      return yield* missing(ref, type)
+    })
+
+    // A ref no model of this type has: another type's model (422) or no model at all (404).
+    const missing = Effect.fnUntraced(function* (ref: Model.Ref, type: Model.Type) {
       const other = (yield* models.available(["chat", "image", "decision"])).find(
         (model) => model.providerID === ref.providerID && model.id === ref.id,
       )
@@ -262,7 +254,7 @@ const retryRateLimits = <A, R>(effect: Effect.Effect<A, AIError, R>) =>
     }),
   )
 
-function resolutionError(ref: Model.Ref, type: string, error: ModelResolver.MediaError) {
+function resolutionError(ref: Model.Ref, type: string, error: ModelResolver.Error) {
   if (error._tag === "Integration.Authorization") return error
   if (error._tag === "SessionRunnerModel.VariantUnavailableError")
     return new InvalidRequestError({ message: error.message, field: "model.variant" })

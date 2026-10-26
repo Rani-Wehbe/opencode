@@ -5301,11 +5301,41 @@
             }
           },
           "404": {
-            "description": "LocationNotFoundError",
+            "description": "ProviderNotFoundError | ModelNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ModelNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UnsupportedModelError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsupportedModelErrorEncoded"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "ProviderRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRequestErrorEncoded"
                 }
               }
             }
@@ -5390,11 +5420,41 @@
             }
           },
           "404": {
-            "description": "LocationNotFoundError",
+            "description": "ProviderNotFoundError | ModelNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ModelNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UnsupportedModelError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsupportedModelErrorEncoded"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "ProviderRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRequestErrorEncoded"
                 }
               }
             }

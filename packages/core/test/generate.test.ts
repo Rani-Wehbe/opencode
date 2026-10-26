@@ -125,19 +125,21 @@ for (const operation of ["request", "read"] as const) {
   )
 }
 
-for (const reason of [
-  new AuthenticationError({ message: "Invalid credentials" }),
-  new QuotaExceededError({ message: "No quota" }),
-  new InvalidRequestError({ message: "Invalid prompt" }),
-]) {
+for (const [reason, expected] of [
+  [
+    new AuthenticationError({ message: "Invalid credentials" }),
+    { _tag: "Generate.ProviderRequestError", reason: "authentication" },
+  ],
+  [new QuotaExceededError({ message: "No quota" }), { _tag: "Generate.ProviderRequestError", reason: "rate_limit" }],
+  [new InvalidRequestError({ message: "Invalid prompt" }), { _tag: "Generate.InvalidRequestError" }],
+] as const) {
   retryIt.effect(`does not retry stateless ${reason._tag} failures`, () =>
     Effect.gen(function* () {
       const generate = yield* Generate.Service
       const llm = yield* TestLLM.Test
       yield* llm.push(TestLLM.failAfter(new AIError({ reason })))
       const result = yield* generate.text({ prompt: "Answer privately", model: reference }).pipe(Effect.flip)
-      expect(result).toBeInstanceOf(Generate.UnavailableError)
-      expect(result.message).toBe(reason.message)
+      expect(result).toMatchObject({ ...expected, message: reason.message })
       expect(yield* llm.requests()).toHaveLength(1)
     }),
   )
@@ -177,7 +179,7 @@ for (const [reason, attempts] of [
         .pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
       yield* llm.wait(1)
       yield* TestClock.adjust("2 minutes")
-      expect(yield* Fiber.join(result)).toBeInstanceOf(Generate.UnavailableError)
+      expect(yield* Fiber.join(result)).toMatchObject({ _tag: "Generate.ProviderRequestError", reason: "provider" })
       expect(yield* llm.requests()).toHaveLength(attempts)
     }),
   )
@@ -289,6 +291,12 @@ describe("image and decision generation", () => {
       ),
   })
   const mediaModels = Layer.mock(Model.Service, {
+    get: (providerID, modelID) =>
+      Effect.succeed(
+        catalog.find(
+          (model) => (model.type ?? "chat") === "chat" && model.providerID === providerID && model.id === modelID,
+        ),
+      ),
     available: (types) => Effect.succeed(catalog.filter((model) => (types ?? ["chat"]).includes(model.type ?? "chat"))),
   })
   const requests: { url: string; headers: Record<string, string>; body: unknown }[] = []
@@ -428,6 +436,10 @@ describe("image and decision generation", () => {
       expect(image._tag).toBe("Generate.UnsupportedModelError")
       const unknown = yield* generate.image({ model: ref("openai", "nope"), prompt: "x" }).pipe(Effect.flip)
       expect(unknown._tag).toBe("Generate.ModelNotFoundError")
+      const text = yield* generate.text({ model: ref("openai", "gpt-image-1-mini"), prompt: "x" }).pipe(Effect.flip)
+      expect(text._tag).toBe("Generate.UnsupportedModelError")
+      const unknownText = yield* generate.text({ model: ref("openai", "nope"), prompt: "x" }).pipe(Effect.flip)
+      expect(unknownText._tag).toBe("Generate.ModelNotFoundError")
     }),
   )
 })

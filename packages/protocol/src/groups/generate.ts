@@ -12,7 +12,7 @@ import {
   UnsupportedModelError,
 } from "../errors.js"
 
-const mediaErrors = [
+const errors = [
   InvalidRequestError,
   ProviderNotFoundError,
   ModelNotFoundError,
@@ -30,7 +30,7 @@ const textContract = {
   success: Schema.Struct({
     data: Schema.Struct({ text: Schema.String }),
   }).annotate({ identifier: "GenerateTextResponse" }),
-  error: [InvalidRequestError, ServiceUnavailableError, LocationNotFoundError],
+  error: errors,
 }
 
 export const GenerateGroup = HttpApiGroup.make("server.generate")
@@ -59,7 +59,7 @@ export const GenerateGroup = HttpApiGroup.make("server.generate")
     HttpApiEndpoint.post("generate.image", "/api/experimental/generate/image", {
       payload: Generate.ImageRequest,
       success: Schema.Struct({ data: Generate.ImageResult }).annotate({ identifier: "GenerateImageResponse" }),
-      error: mediaErrors,
+      error: errors,
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "experimental.generate.image",
@@ -73,7 +73,7 @@ export const GenerateGroup = HttpApiGroup.make("server.generate")
     HttpApiEndpoint.post("generate.decisions", "/api/experimental/generate/decisions", {
       payload: Generate.DecisionRequest,
       success: Schema.Struct({ data: Generate.DecisionResult }).annotate({ identifier: "GenerateDecisionsResponse" }),
-      error: mediaErrors,
+      error: errors,
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "experimental.generate.decisions",

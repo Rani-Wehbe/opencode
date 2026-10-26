@@ -26,16 +26,7 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
       function* (request: { readonly payload: { readonly prompt: string; readonly model?: Model.Ref } }) {
         yield* awaitPlugins
         const generate = yield* Generate.Service
-        const text = yield* generate
-          .text(request.payload)
-          .pipe(
-            Effect.mapError((error) =>
-              error._tag === "Generate.ModelSelectionError"
-                ? new InvalidRequestError({ message: error.message })
-                : new ServiceUnavailableError({ message: error.message, service: error.service }),
-            ),
-          )
-        return { data: { text } }
+        return { data: { text: yield* generate.text(request.payload).pipe(Effect.mapError(generateError)) } }
       },
       Effect.provide(services),
       locationErrors,
@@ -44,7 +35,7 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
       function* (request: { readonly payload: ImageRequest }) {
         yield* awaitPlugins
         const generate = yield* Generate.Service
-        return { data: yield* generate.image(request.payload).pipe(Effect.mapError(mediaError)) }
+        return { data: yield* generate.image(request.payload).pipe(Effect.mapError(generateError)) }
       },
       Effect.provide(services),
       locationErrors,
@@ -59,7 +50,7 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
           })
         yield* awaitPlugins
         const generate = yield* Generate.Service
-        return { data: yield* generate.decisions(request.payload).pipe(Effect.mapError(mediaError)) }
+        return { data: yield* generate.decisions(request.payload).pipe(Effect.mapError(generateError)) }
       },
       Effect.provide(services),
       locationErrors,
@@ -72,7 +63,7 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
   }),
 )
 
-function mediaError(error: Generate.MediaError) {
+function generateError(error: Generate.Error) {
   switch (error._tag) {
     case "Generate.ModelNotFoundError":
       return new ModelNotFoundError({ providerID: error.providerID, modelID: error.modelID, message: error.message })
