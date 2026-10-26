@@ -17430,6 +17430,11 @@
         "required": ["data", "mime"],
         "additionalProperties": false
       },
+      "Generate.ImageAspect": {
+        "type": "string",
+        "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?:[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$",
+        "description": "Aspect ratio as width:height, for example 16:9"
+      },
       "Generate.ImageOutput": {
         "type": "object",
         "properties": {
@@ -17470,14 +17475,26 @@
             "exclusiveMinimum": 0
           },
           "aspect": {
-            "type": "string"
+            "$ref": "#/components/schemas/Generate.ImageAspect"
           },
           "resolution": {
-            "type": "string"
+            "$ref": "#/components/schemas/Generate.ImageResolution"
           }
         },
         "required": ["model", "prompt"],
         "additionalProperties": false
+      },
+      "Generate.ImageResolution": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": ["1K", "2K", "4K"]
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Size tier such as 1K, 2K or 4K; 1K is about as many pixels as 1024x1024 at the requested aspect"
       },
       "Generate.ImageResult": {
         "type": "object",

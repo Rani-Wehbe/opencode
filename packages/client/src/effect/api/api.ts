@@ -1425,8 +1425,8 @@ export type GenerateImageInput = {
   readonly prompt: string
   readonly images?: ReadonlyArray<Generate.File> | undefined
   readonly n?: number | undefined
-  readonly aspect?: string | undefined
-  readonly resolution?: string | undefined
+  readonly aspect?: Generate.ImageAspect | undefined
+  readonly resolution?: Generate.ImageResolution | undefined
 }
 export type GenerateImageOutput = Generate.ImageResult
 export type GenerateImageOperation<E = never> = (input: GenerateImageInput) => Effect.Effect<GenerateImageOutput, E>

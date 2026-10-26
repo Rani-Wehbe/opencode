@@ -179,7 +179,7 @@ export const layer = Layer.effect(
         prompt: input.prompt,
         images: input.images?.map((file) => Media.base64(file.data, file.mime)),
         n: input.n,
-        aspect: input.aspect as Media.AspectRatio | undefined,
+        aspect: input.aspect,
         resolution: input.resolution,
       }).pipe(
         Effect.provideService(ImageClient.Service, images),

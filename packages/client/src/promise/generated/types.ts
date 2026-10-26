@@ -3723,8 +3723,8 @@ export type GenerateImageInput = {
   readonly prompt: string
   readonly images?: ReadonlyArray<{ readonly data: string; readonly mime: string; readonly name?: string }> | undefined
   readonly n?: number | undefined
-  readonly aspect?: string | undefined
-  readonly resolution?: string | undefined
+  readonly aspect?: `${number}${":"}${number}` | undefined
+  readonly resolution?: ("1K" | "2K" | "4K" | (string & {})) | undefined
 }
 
 export type GenerateImageOutput = GenerateImageResponse["data"]

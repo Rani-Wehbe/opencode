@@ -35,6 +35,22 @@ export type Native = typeof Native.Type
 // Image
 // ---------------------------------------------------------------------------
 
+export type ImageAspect = `${number}:${number}`
+// The template literal gives clients the type; the pattern also rejects signs and exponents it would allow.
+export const ImageAspect: Schema.Codec<ImageAspect> = Schema.TemplateLiteral([Schema.Number, ":", Schema.Number])
+  .check(Schema.isPattern(/^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/))
+  .annotate({ identifier: "Generate.ImageAspect", description: "Aspect ratio as width:height, for example 16:9" })
+
+/** Open-ended: providers add size tiers beyond these. */
+export type ImageResolution = "1K" | "2K" | "4K" | (string & {})
+export const ImageResolution: Schema.Codec<ImageResolution> = Schema.Union([
+  Schema.Literals(["1K", "2K", "4K"]),
+  Schema.String,
+]).annotate({
+  identifier: "Generate.ImageResolution",
+  description: "Size tier such as 1K, 2K or 4K; 1K is about as many pixels as 1024x1024 at the requested aspect",
+})
+
 export interface ImageRequest extends Schema.Schema.Type<typeof ImageRequest> {}
 export const ImageRequest = Schema.Struct({
   model: Model.Ref,
@@ -43,12 +59,8 @@ export const ImageRequest = Schema.Struct({
     .pipe(optional)
     .annotate(description("Edit sources or style and subject references, in order")),
   n: PositiveInt.pipe(optional).annotate(description("Number of images to generate; defaults to 1")),
-  aspect: Schema.String.check(Schema.isPattern(/^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/))
-    .pipe(optional)
-    .annotate(description("Aspect ratio as width:height, for example 16:9")),
-  resolution: Schema.String.pipe(optional).annotate(
-    description("Size tier such as 1K, 2K or 4K; 1K is about as many pixels as 1024x1024 at the requested aspect"),
-  ),
+  aspect: ImageAspect.pipe(optional),
+  resolution: ImageResolution.pipe(optional),
 }).annotate({ identifier: "Generate.ImageRequest" })
 
 export interface ImageOutput extends Schema.Schema.Type<typeof ImageOutput> {}
