@@ -155,6 +155,54 @@ test("re-registered commands keep their opencode object until its data changes",
   }
 })
 
+test("re-registered commands keep inline slash objects until their fields change", async () => {
+  const [aliases, setAliases] = createSignal(["d"])
+  const [version, setVersion] = createSignal(0)
+  let registered = () => undefined as { opencode?: unknown; slash?: unknown } | undefined
+  let command = () => undefined as KeymapCommand | undefined
+
+  function Harness() {
+    const keymap = useKeymap()
+    const commands = Keymap.useCommands()
+    Keymap.createLayer(() => ({
+      commands: [
+        {
+          id: "demo.slash",
+          title: "Demo",
+          suggested: version() >= 0,
+          slash: { name: "demo", aliases: aliases(), arguments: true },
+          run() {},
+        },
+      ],
+    }))
+    registered = () =>
+      keymap.getCommandEntries({ visibility: "registered" }).find((entry) => entry.command.name === "demo.slash")
+        ?.command
+    command = () => commands().find((item) => item.id === "demo.slash")
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <ConfigProvider config={createTuiResolvedConfig()}>
+      <Keymap.Provider>
+        <Harness />
+      </Keymap.Provider>
+    </ConfigProvider>
+  ))
+  try {
+    const first = registered()
+    setVersion(1)
+    expect(registered()?.opencode).toBe(first?.opencode)
+    expect(registered()?.slash).toBe(first?.slash)
+
+    setAliases(["d", "dm"])
+    expect(registered()?.opencode).not.toBe(first?.opencode)
+    expect(command()?.slash?.aliases).toEqual(["d", "dm"])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("global commands stay reachable when the mode changes", async () => {
   const calls: string[] = []
   let exercise = () => {}
