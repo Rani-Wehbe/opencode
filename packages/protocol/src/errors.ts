@@ -274,3 +274,12 @@ export class ShellNotFoundError extends Schema.TaggedError<ShellNotFoundError>()
   },
   { httpApiStatus: 404 },
 ) {}
+
+export class ScheduleNotFoundError extends Schema.TaggedError<ScheduleNotFoundError>()(
+  "ScheduleNotFoundError",
+  {
+    scheduleID: Schema.String,
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}

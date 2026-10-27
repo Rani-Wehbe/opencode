@@ -19,15 +19,11 @@ const decodeDuration = Schema.decodeUnknownOption(Schema.DurationFromString)
 /** Milliseconds in a duration string, or `None` when it is not one. */
 export const durationMillis = (value: string) => decodeDuration(value).pipe(Option.map(Duration.toMillis))
 
-/** A duration such as "90 seconds", "5 minutes" or "2 hours". */
-export const DurationString = Schema.String.check(
-  Schema.makeFilter((value: string) =>
-    Option.match(durationMillis(value), {
-      onNone: () => `expected a duration such as "5 minutes", got ${JSON.stringify(value)}`,
-      onSome: (millis) => millis > 0 || "expected a positive duration",
-    }),
-  ),
-).annotate({ identifier: "Schedule.Duration" })
+/** A duration such as "90 seconds", "5 minutes" or "2 hours". The service validates it, since clients cannot run a custom check. */
+export const DurationString = Schema.String.annotate({
+  identifier: "Schedule.Duration",
+  description: 'A duration such as "90 seconds", "5 minutes" or "2 hours".',
+})
 
 const zone = {
   tz: Schema.String.pipe(optional).annotate({
@@ -107,3 +103,43 @@ export const CreateInput = Schema.Struct({
   action: Action,
 }).annotate({ identifier: "Schedule.CreateInput" })
 export type CreateInput = typeof CreateInput.Type
+
+/** The `when` callers write: exactly one of `in`, `at`, `every` or `cron`, with an optional `tz`. */
+export const WhenInput = Schema.Union([
+  Schema.Struct({ in: In.fields.in, ...zone }),
+  Schema.Struct({ at: At.fields.at, ...zone }),
+  Schema.Struct({ every: Every.fields.every, ...zone }),
+  Schema.Struct({ cron: Cron.fields.cron, ...zone }),
+]).annotate({ identifier: "Schedule.WhenInput" })
+export type WhenInput = typeof WhenInput.Type
+
+/** A schedule as callers describe it: when it fires, when it stops, and the prompt it wakes the Session with. */
+export const Request = Schema.Struct({
+  name: Schema.String.pipe(optional).annotate({ description: "A short label for the schedule." }),
+  when: WhenInput.annotate({
+    description:
+      'When it fires: { in: "20 minutes" }, { at: "2026-10-27T09:00" }, { every: "1 hour" } or { cron: "0 9 * * 1-5" }. Wall-clock times use tz.',
+  }),
+  ends: Ends.pipe(optional).annotate({
+    description: 'Stops a repeating schedule at the first limit reached: { after: "8 hours" }, { at }, { times: 3 }.',
+  }),
+  prompt: Schema.String.check(Schema.isMinLength(1)).annotate({
+    description: "The message the Session receives each time the schedule fires.",
+  }),
+}).annotate({ identifier: "Schedule.Request" })
+export type Request = typeof Request.Type
+
+export const toCreateInput = (sessionID: SessionID, request: Request): CreateInput => ({
+  sessionID,
+  name: request.name,
+  when: toWhen(request.when),
+  ends: request.ends,
+  action: { type: "prompt", prompt: request.prompt },
+})
+
+const toWhen = (when: WhenInput): When => {
+  if ("in" in when) return { type: "in", ...when }
+  if ("at" in when) return { type: "at", ...when }
+  if ("every" in when) return { type: "every", ...when }
+  return { type: "cron", ...when }
+}
