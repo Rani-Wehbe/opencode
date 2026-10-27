@@ -351,6 +351,8 @@ describe("image and decision generation", () => {
         headers: { authorization: "Bearer openai-key" },
         body: { model: "gpt-image-1-mini", prompt: "A black circle" },
       })
+      // The HTTP response schema only accepts plain JSON, so nothing may be undefined.
+      expect(JSON.parse(JSON.stringify(result))).toStrictEqual(result)
       expect(result).toMatchObject({
         images: [{ type: "image", data: "aW1hZ2U=", mime: "image/png" }],
         tokens: { input: 9, output: 272 },

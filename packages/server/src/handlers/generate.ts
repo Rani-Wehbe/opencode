@@ -75,16 +75,22 @@ function generateError(error: Generate.Error) {
         message: error.message,
       })
     case "Generate.InvalidRequestError":
-      return new InvalidRequestError({ message: error.message, field: error.field })
+      return new InvalidRequestError({
+        message: error.message,
+        ...(error.field === undefined ? {} : { field: error.field }),
+      })
     case "Generate.ProviderRequestError":
       return new ProviderRequestError({
         providerID: error.providerID,
         reason: error.reason,
         message: error.message,
-        status: error.status,
-        retryAfterMs: error.retryAfterMs,
+        ...(error.status === undefined ? {} : { status: error.status }),
+        ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
       })
     case "Generate.UnavailableError":
-      return new ServiceUnavailableError({ message: error.message, service: error.service })
+      return new ServiceUnavailableError({
+        message: error.message,
+        ...(error.service === undefined ? {} : { service: error.service }),
+      })
   }
 }

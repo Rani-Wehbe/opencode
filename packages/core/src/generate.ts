@@ -197,8 +197,10 @@ export const layer = Layer.effect(
       const usage = response.usage?.type === "tokens" ? response.usage : undefined
       return {
         images: outputs,
-        ...(usage ? { tokens: { input: usage.input, output: usage.output } } : {}),
-        ...(response.providerMetadata ? { native: response.providerMetadata } : {}),
+        ...(usage?.input === undefined && usage?.output === undefined
+          ? {}
+          : { tokens: { input: usage.input, output: usage.output } }),
+        ...(response.providerMetadata ? { native: plainJson(response.providerMetadata) } : {}),
       } satisfies ImageResult
     })
 
@@ -224,7 +226,7 @@ export const layer = Layer.effect(
         ...(usage?.inputTokens === undefined && usage?.outputTokens === undefined
           ? {}
           : { tokens: { input: usage.inputTokens, output: usage.outputTokens } }),
-        ...(response.providerMetadata ? { native: response.providerMetadata } : {}),
+        ...(response.providerMetadata ? { native: plainJson(response.providerMetadata) } : {}),
       } satisfies DecisionResult
     })
 
@@ -253,6 +255,11 @@ const retryRateLimits = <A, R>(effect: Effect.Effect<A, AIError, R>) =>
       while: (error) => error.reason._tag === "RateLimit",
     }),
   )
+
+// Provider metadata may hold undefined fields, which the JSON response schema rejects.
+function plainJson(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value))
+}
 
 function resolutionError(ref: Model.Ref, type: string, error: ModelResolver.Error) {
   if (error._tag === "Integration.Authorization") return error
