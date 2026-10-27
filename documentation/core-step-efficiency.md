@@ -1,7 +1,6 @@
 # PR 1: Core step-path efficiency — `core-step-efficiency`
 
 > Branch: `core-step-efficiency` · commit `650a3c2` · targets `dev` · pushed to `fork`.
-> Draft PR body: `documentation/pr-draft-core-step-efficiency.md` (ready for `gh pr create`).
 
 ## Why
 
