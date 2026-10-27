@@ -1,6 +1,6 @@
 # PR 1: Core step-path efficiency — `core-step-efficiency`
 
-> Branch: `core-step-efficiency` · commit `650a3c2` · targets `dev` · local-only until pushed to `fork`.
+> Branch: `core-step-efficiency` · commit `650a3c2` · targets `dev` · pushed to `fork`.
 
 ## Why
 

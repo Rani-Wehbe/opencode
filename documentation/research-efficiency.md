@@ -94,3 +94,8 @@ How to let `TabPulse` animate without pinning the renderer:
 To investigate next: how `onUpdate` is gated for non-live nodes (does core skip `onUpdate` on non-live
 renderables? the spinner comment implies it runs on frames it requests itself), and whether
 `requestRender` from a timer is sufficient for envelope advancement without `live`.
+
+**Resolved:** `onUpdate` runs on every rendered frame for visible, non-culled nodes regardless of
+`live`; a `clock.setTimeout` → `requestRender` chain (the spinner's pattern) is sufficient to drive
+the envelopes without pinning the frame loop. Option A was implemented — see `tab-idle-cpu.md` in
+this directory.
