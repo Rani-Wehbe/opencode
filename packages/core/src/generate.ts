@@ -187,9 +187,12 @@ export const layer = Layer.effect(
         Effect.mapError((error) => providerError(input.model, error)),
       )
       // URL results are downloaded so every image comes back inline, like the request's own files.
+      // Materializing also detects the type of a downloaded image from its bytes when the URL didn't say.
       const outputs = yield* Effect.forEach(response.images, (asset) =>
-        asset.base64().pipe(
-          Effect.map((data) => ({ type: "image" as const, data, mime: asset.mediaType })),
+        asset.materialize().pipe(
+          Effect.flatMap((image) =>
+            image.base64().pipe(Effect.map((data) => ({ type: "image" as const, data, mime: image.mediaType }))),
+          ),
           Effect.provideService(RequestExecutor.Service, executor),
           Effect.mapError((error) => providerError(input.model, error)),
         ),

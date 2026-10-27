@@ -262,6 +262,11 @@ describe("image and decision generation", () => {
       package: "@opencode/ai/providers/openai/images",
     }),
     Info.make({
+      ...Info.default(Provider.ID.make("zai"), ID.make("glm-image")),
+      type: "image",
+      package: "@opencode/ai/providers/zai/images",
+    }),
+    Info.make({
       ...Info.default(Provider.ID.openai, ID.make("gpt-5")),
       package: "@opencode/ai/providers/openai/responses",
     }),
@@ -306,6 +311,12 @@ describe("image and decision generation", () => {
       Effect.gen(function* () {
         const text = request.body._tag === "Uint8Array" ? new TextDecoder().decode(request.body.body) : ""
         requests.push({ url: request.url, headers: request.headers, body: text ? JSON.parse(text) : undefined })
+        if (request.url === "https://images.example/fox") return HttpClientResponse.fromWeb(request, new Response(PNG))
+        if (request.url === "https://api.z.ai/api/paas/v4/images/generations")
+          return HttpClientResponse.fromWeb(
+            request,
+            Response.json({ created: 1, data: [{ url: "https://images.example/fox" }] }),
+          )
         if (request.url === "https://api.openai.com/v1/images/generations")
           return HttpClientResponse.fromWeb(
             request,
@@ -357,6 +368,14 @@ describe("image and decision generation", () => {
         images: [{ type: "image", data: "aW1hZ2U=", mime: "image/png" }],
         tokens: { input: 9, output: 272 },
       })
+    }),
+  )
+
+  mediaIt.effect("downloads URL images and detects their type from the bytes", () =>
+    Effect.gen(function* () {
+      const generate = yield* Generate.Service
+      const result = yield* generate.image({ model: ref("zai", "glm-image"), prompt: "A fox" })
+      expect(result.images).toEqual([{ type: "image", data: Buffer.from(PNG).toString("base64"), mime: "image/png" }])
     }),
   )
 
@@ -448,3 +467,5 @@ describe("image and decision generation", () => {
 
 const DECISION_RESPONSE =
   '{"model":"typesafe/jev-1.13-20260917","answers":{"department":{"type":"choice","choice":"billing","probabilities":{"billing":1,"sales":0,"technical":0},"confidence":1},"urgency":{"type":"score","score":1.02,"legend":{"0":"Can wait for normal support","1":"Needs prompt attention","2":"Actively blocking revenue"},"probabilities":{"0":0.01,"1":0.96,"2":0.03},"confidence":0.95},"refund":{"type":"noul","noul":0.99}},"usage":{"input_tokens":422,"output_tokens":69,"cost":0.000017724},"id":"gen-dec-1790088886-JRlffOLUwQdx4Lltu2se","provider":"TypeSafe"}'
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
