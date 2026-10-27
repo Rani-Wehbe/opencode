@@ -2,7 +2,16 @@ import { Effect, Schema } from "effect"
 import { DecisionClient, Service, type Execute } from "./decision-client.js"
 import { Media } from "./media.js"
 import { tryRequest } from "./media-model.js"
-import { AIError, HttpOptions, ModelID, ProviderID, ProviderMetadata, ProviderOptions, Usage } from "./schema/index.js"
+import {
+  AIError,
+  HttpOptions,
+  ModelID,
+  ProviderID,
+  ProviderMetadata,
+  ProviderOptions,
+  Usage,
+  type OpenString,
+} from "./schema/index.js"
 
 // ---------------------------------------------------------------------------
 // Input
@@ -10,12 +19,12 @@ import { AIError, HttpOptions, ModelID, ProviderID, ProviderMetadata, ProviderOp
 
 export const DecisionTextPart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String })
 export const DecisionJsonPart = Schema.Struct({ type: Schema.Literal("json"), value: Schema.Json })
-export const DecisionMediaPart = Schema.Struct({
-  type: Schema.Literal("media"),
-  media: Media.AssetSchema,
-  filename: Schema.optional(Schema.String),
+export const DecisionFilePart = Schema.Struct({
+  type: Schema.Literal("file"),
+  file: Media.AssetSchema,
+  name: Schema.optional(Schema.String),
 })
-export const DecisionPart = Schema.Union([DecisionTextPart, DecisionJsonPart, DecisionMediaPart]).pipe(
+export const DecisionPart = Schema.Union([DecisionTextPart, DecisionJsonPart, DecisionFilePart]).pipe(
   Schema.toTaggedUnion("type"),
 )
 export type DecisionPart = Schema.Schema.Type<typeof DecisionPart>
@@ -100,11 +109,16 @@ export const ScoreAnswer = Schema.Struct({
 })
 export type ScoreAnswer = Schema.Schema.Type<typeof ScoreAnswer>
 
-/** The host declined this one question; the other answers still came back. */
+/** Why a question has no answer; hosts may report reasons beyond these. */
+export type ErrorReason = OpenString<"refusal">
+export const ErrorReason: Schema.Codec<ErrorReason> = Schema.Union([Schema.Literal("refusal"), Schema.String])
+
+/** This one question has no answer; the other answers still came back. */
 export const ErrorAnswer = Schema.Struct({
   name: Schema.String,
   type: Schema.Literal("error"),
-  reason: Schema.Literal("refusal"),
+  reason: ErrorReason,
+  message: Schema.optional(Schema.String),
 })
 export type ErrorAnswer = Schema.Schema.Type<typeof ErrorAnswer>
 

@@ -85,7 +85,7 @@ describe("Decision", () => {
         input: [
           { type: "text", text: "Ticket:" },
           { type: "json", value: { ticket: "Please refund the duplicate charge." } },
-          { type: "media", media: png },
+          { type: "file", file: png },
         ],
         questions,
         providerOptions: { trace: { enabled: true } },
@@ -207,8 +207,8 @@ describe("Decision", () => {
       ),
       input: [
         { type: "text", text: "Before:" },
-        { type: "media", media: Media.url("https://assets.test/before.png", { mediaType: "image/png" }) },
-        { type: "media", media: Media.base64("AAAA", "audio/wav") },
+        { type: "file", file: Media.url("https://assets.test/before.png", { mediaType: "image/png" }) },
+        { type: "file", file: Media.base64("AAAA", "audio/wav") },
       ],
       questions: [{ name: "red", type: "predicate", instructions: "Is the image mostly red?" }],
       providerOptions: { user: "user-1", session_id: "session-1" },
@@ -261,7 +261,7 @@ describe("Decision", () => {
       model: Baseten.configure({ apiKey: "baseten-key" }).decision("decision-models/baseten-mammoth-27b-latest"),
       input: [
         { type: "text", text: "Photo:" },
-        { type: "media", media: png },
+        { type: "file", file: png },
         { type: "json", value: { source: "upload" } },
       ],
       questions: [{ name: "red", type: "predicate", instructions: "Is the photo mostly red?" }],
@@ -305,8 +305,8 @@ describe("Decision", () => {
         { type: "text", text: "Ticket:" },
         { type: "json", value: { ticket: "Please refund the duplicate charge." } },
         { type: "json", value: 42 },
-        { type: "media", media: png },
-        { type: "media", media: Media.url("https://assets.test/receipt.jpg", { mediaType: "image/jpeg" }) },
+        { type: "file", file: png },
+        { type: "file", file: Media.url("https://assets.test/receipt.jpg", { mediaType: "image/jpeg" }) },
       ],
       questions,
       providerOptions: { safetyIdentifier: "user-1", promptCacheKey: "support-v1" },
@@ -401,6 +401,7 @@ describe("Decision", () => {
       questions: [
         { name: "greeting", type: "predicate", instructions: "Is this a greeting?" },
         { name: "unsafe", type: "predicate", instructions: "Something the model declines" },
+        { name: "explained", type: "predicate", instructions: "Something the model declines with a reason" },
       ],
     }).pipe(
       Effect.tap((response) =>
@@ -408,6 +409,7 @@ describe("Decision", () => {
           expect(response.answers).toEqual([
             { name: "greeting", type: "predicate", probability: 0.99 },
             { name: "unsafe", type: "error", reason: "refusal" },
+            { name: "explained", type: "error", reason: "refusal", message: "I can't help with that." },
           ]),
         ),
       ),
@@ -419,6 +421,7 @@ describe("Decision", () => {
               answers: [
                 { type: "predicate", name: "greeting", probability: 0.99 },
                 { type: "refusal", name: "unsafe" },
+                { type: "refusal", name: "explained", message: "I can't help with that." },
               ],
             }),
           ),
@@ -431,7 +434,7 @@ describe("Decision", () => {
     Effect.gen(function* () {
       const error = yield* Decision.generate({
         model: OpenAI.configure({ apiKey: "openai-key" }).decision("gpt-6-luna"),
-        input: [{ type: "media", media: Media.base64("AAAA", "audio/wav") }],
+        input: [{ type: "file", file: Media.base64("AAAA", "audio/wav") }],
         questions: [{ name: "speech", type: "predicate", instructions: "Is someone speaking?" }],
       }).pipe(Effect.flip)
       expect(error.reason._tag).toBe("UnsupportedOperation")
@@ -482,8 +485,8 @@ describe("Decision", () => {
       ),
       input: [
         { type: "text", text: "Compare:" },
-        { type: "media", media: png },
-        { type: "media", media: Media.base64("AAAA", "audio/wav") },
+        { type: "file", file: png },
+        { type: "file", file: Media.base64("AAAA", "audio/wav") },
       ],
       questions: [{ name: "red", type: "predicate", instructions: "Is the image mostly red?" }],
     }).pipe(

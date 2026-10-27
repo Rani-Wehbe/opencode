@@ -221,7 +221,7 @@ const program = Decision.generate({
   model: OpenAI.configure().decision("gpt-6-luna"),
   input: [
     { type: "text", text: "I was charged twice. Please refund the duplicate payment." },
-    { type: "media", media: Media.url("https://example.com/receipt.png", { mediaType: "image/png" }) },
+    { type: "file", file: Media.url("https://example.com/receipt.png", { mediaType: "image/png" }) },
   ],
   questions: [
     { name: "refund", type: "predicate", instructions: "Is the customer asking for a refund?" },
@@ -244,8 +244,9 @@ const response = await Effect.runPromise(program.pipe(Effect.provide(DecisionCli
 const [refund, department] = response.answers
 ```
 
-`input` is a JSON object or an ordered list of `text`, `json` and `media` parts. Answers come back in question order.
-A question the host declines is `{ name, type: "error", reason: "refusal" }`; the other answers still come back.
+`input` is a JSON object or an ordered list of `text`, `json` and `file` parts. Answers come back in question order.
+A question the host declines is `{ name, type: "error", reason, message? }`, with `reason` such as `"refusal"`; the
+other answers still come back.
 Media goes wherever the host reads it, and a kind the host has no place for fails the call. Host-specific fields go in
 `providerOptions`, typed by the selected model (OpenAI `promptCacheKey` and `safetyIdentifier`, OpenRouter
 `provider` routing, Baseten `max_len`).

@@ -114,7 +114,7 @@ const placeMedia = Effect.fnUntraced(function* (request: DecisionRequestFor, med
         message: `${NAME} takes ${accepted} here; got ${asset.mediaType}`,
       }),
     })
-  const media = parts.flatMap((part) => (part.type === "media" ? [part.media] : []))
+  const media = parts.flatMap((part) => (part.type === "file" ? [part.file] : []))
   if (media.length === 0) return { state: state(parts.map(plain)) }
   if (mediaInput === "state") return { state: yield* Effect.forEach(parts, (part) => stateItem(part, unsupported)) }
   // Chat-style content in one user message: text and JSON as text parts, media as in `state`.
@@ -125,7 +125,7 @@ const placeMedia = Effect.fnUntraced(function* (request: DecisionRequestFor, med
           {
             role: "user",
             content: yield* Effect.forEach(parts, (part) =>
-              part.type === "media"
+              part.type === "file"
                 ? stateItem(part, unsupported)
                 : Effect.succeed({ type: "text", text: part.type === "text" ? part.text : encodeJson(part.value) }),
             ),
@@ -144,7 +144,7 @@ const placeMedia = Effect.fnUntraced(function* (request: DecisionRequestFor, med
         return items.length === 0 ? [] : [[field, items]]
       }),
     )
-    return { state: state(parts.filter((part) => part.type !== "media").map(plain)), ...fields }
+    return { state: state(parts.filter((part) => part.type !== "file").map(plain)), ...fields }
   }
   const unplaced = media.find((asset) => asset.kind !== "image")
   if (unplaced !== undefined) return yield* unsupported(unplaced, "images")
@@ -153,7 +153,7 @@ const placeMedia = Effect.fnUntraced(function* (request: DecisionRequestFor, med
   const reference = (index: number) => `<image-${index + 1}>`
   const items = parts.reduce<{ readonly next: number; readonly values: ReadonlyArray<unknown> }>(
     (acc, part) =>
-      part.type === "media"
+      part.type === "file"
         ? { next: acc.next + 1, values: [...acc.values, reference(acc.next)] }
         : { next: acc.next, values: [...acc.values, plain(part)] },
     { next: 0, values: [] },
@@ -182,8 +182,8 @@ const stateItem = (
   part: DecisionPart,
   unsupported: (asset: Media.Asset, accepted: string) => AIError,
 ): Effect.Effect<unknown, AIError> => {
-  if (part.type !== "media") return Effect.succeed(plain(part))
-  const asset = part.media
+  if (part.type !== "file") return Effect.succeed(plain(part))
+  const asset = part.file
   if (asset.kind !== "image" && asset.kind !== "audio" && asset.kind !== "video")
     return Effect.fail(unsupported(asset, "images, audio and video"))
   return ProviderShared.requireInlineMedia(NAME, asset).pipe(

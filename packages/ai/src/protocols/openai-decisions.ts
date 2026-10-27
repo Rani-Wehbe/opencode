@@ -41,7 +41,7 @@ const Answer = Schema.Union([
     probabilities: Schema.Array(Schema.Struct({ value: Schema.Int, label: Schema.String, probability: Probability })),
     confidence: Probability,
   }),
-  Schema.Struct({ type: Schema.Literal("refusal"), name: Schema.String }),
+  Schema.Struct({ type: Schema.Literal("refusal"), name: Schema.String, message: Schema.optional(Schema.String) }),
 ])
 const Response = Schema.Struct({
   model: Schema.String,
@@ -82,18 +82,18 @@ const inputPart = (
         ? { type: "input_json", data: part.value }
         : { type: "input_text", text: encodeJson(part.value) },
     )
-  if (part.media.kind !== "image")
+  if (part.file.kind !== "image")
     return Effect.fail(
       new AIError({
         reason: new UnsupportedOperationError({
           operation: "decision.media",
           provider: request.model.provider,
           route: request.model.route.id,
-          message: `${NAME} takes images only; got ${part.media.kind} media`,
+          message: `${NAME} takes images only; got ${part.file.kind} media`,
         }),
       }),
     )
-  return ProviderShared.mediaReference(part.media, undefined, `${NAME} image input`).pipe(
+  return ProviderShared.mediaReference(part.file, undefined, `${NAME} image input`).pipe(
     Effect.map((reference) => ({ type: "input_image", image_url: reference.value })),
   )
 }
@@ -111,7 +111,14 @@ export const protocol = DecisionRoute.protocol({
       const output = yield* decodeDocument(response)
       const answers = output.value.answers.map(
         (answer): DecisionAnswer =>
-          answer.type === "refusal" ? { name: answer.name, type: "error", reason: "refusal" } : answer,
+          answer.type === "refusal"
+            ? {
+                name: answer.name,
+                type: "error",
+                reason: "refusal",
+                ...(answer.message === undefined ? {} : { message: answer.message }),
+              }
+            : answer,
       )
       const byName = new Map(answers.map((answer) => [answer.name, answer]))
       const ordered = context.request.questions.flatMap((question) => byName.get(question.name) ?? [])
