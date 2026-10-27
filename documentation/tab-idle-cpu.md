@@ -1,6 +1,7 @@
 # PR 2: TUI idle CPU — `tab-idle-cpu`
 
 > Branch: `tab-idle-cpu` · commit `51a2004` · targets `dev` · independent of PR 1.
+> Draft PR body: `documentation/pr-draft-tab-idle-cpu.md` (ready for `gh pr create`).
 
 ## Why
 
