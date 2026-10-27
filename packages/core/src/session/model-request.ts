@@ -219,6 +219,18 @@ export interface Interface {
   readonly title: (input: Input) => Effect.Effect<Prepared<SessionTitle>>
 }
 
+// Tool definitions are shared across steps and sessions, so serializing a schema repeats for
+// every request even though the schema object never changes. Cache the JSON per object and let
+// each request reparse its own copy, which stays safe for hooks that edit schemas in place.
+const schemaCache = new WeakMap<object, string>()
+const schemaJSON = (schema: object) => {
+  const cached = schemaCache.get(schema)
+  if (cached !== undefined) return cached
+  const json = JSON.stringify(schema)
+  schemaCache.set(schema, json)
+  return json
+}
+
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionModelRequest") {}
 
 export const layer = Layer.effect(
@@ -243,7 +255,7 @@ export const layer = Layer.effect(
       // so each hook gets a deep copy.
       const given = new Map(
         tools.definitions.map(
-          (t) => [{ description: t.description, input: JSON.parse(JSON.stringify(t.inputSchema)) }, t] as const,
+          (t) => [{ description: t.description, input: JSON.parse(schemaJSON(t.inputSchema)) }, t] as const,
         ),
       )
       // Hooks see the default output limit and may change or remove it. Titles and generate keep the provider default,

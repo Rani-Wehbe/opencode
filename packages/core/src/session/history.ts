@@ -300,6 +300,36 @@ export const synthetics = Effect.fn("SessionHistory.synthetics")(function* (
   return yield* Effect.forEach(rows, decodeMessageRow, { concurrency: 1 })
 })
 
+/**
+ * Assistant messages from the latest compaction that still carry a streaming or running tool. Read straight
+ * from the rows so draining a session that has no stale tool skips decoding the whole transcript.
+ */
+export const staleTools = Effect.fn("SessionHistory.staleTools")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const compaction = yield* latestCompaction(db, sessionID, "latest")
+  const rows = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(
+      and(
+        eq(SessionMessageTable.session_id, sessionID),
+        eq(SessionMessageTable.type, "assistant"),
+        compaction ? gte(SessionMessageTable.seq, compaction.seq) : undefined,
+        sql`exists (
+          select 1 from json_each(${SessionMessageTable.data}, '$.content') as part
+          where json_extract(part.value, '$.type') = 'tool'
+            and json_extract(part.value, '$.state.status') in ('streaming', 'running')
+        )`,
+      ),
+    )
+    .orderBy(asc(SessionMessageTable.seq))
+    .all()
+    .pipe(Effect.orDie)
+  return yield* Effect.forEach(rows, decodeMessageRow, { concurrency: 1 })
+})
+
 /** The id and text of the session's first user message. */
 export const firstUserMessage = Effect.fn("SessionHistory.firstUserMessage")(function* (
   db: DatabaseService,

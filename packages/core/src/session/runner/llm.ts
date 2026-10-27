@@ -385,7 +385,9 @@ const layer = Layer.effect(
     const settleStaleToolCalls = Effect.fn("SessionRunner.settleStaleToolCalls")(function* (
       sessionID: SessionSchema.ID,
     ) {
-      for (const message of yield* store.context(sessionID)) {
+      // Only assistant messages with a live tool matter, so read those rows directly instead of
+      // decoding the whole transcript and hydrating its blobs on every drain.
+      for (const message of yield* SessionHistory.staleTools(db, sessionID)) {
         if (message.type !== "assistant") continue
         for (const tool of message.content) {
           if (tool.type !== "tool" || (tool.state.status !== "streaming" && tool.state.status !== "running")) continue
