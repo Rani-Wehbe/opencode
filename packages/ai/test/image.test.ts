@@ -231,7 +231,7 @@ describe("Image", () => {
     ),
   )
 
-  it.effect("lowers aspect to the nearest OpenAI size and reports the substitution", () =>
+  it.effect("lowers aspect to the nearest OpenAI size", () =>
     Effect.gen(function* () {
       const openai = OpenAI.configure({ apiKey: "test", baseURL: "https://openai.test/v1" })
       const response = yield* Image.generate({
@@ -239,9 +239,6 @@ describe("Image", () => {
         prompt: "A lighthouse",
         aspect: "16:9",
       })
-      expect(response.notices).toEqual([
-        { type: "other", message: "OpenAI Images doesn't offer 16:9; used 1536x1024 (3:2)" },
-      ])
       const conflict = yield* Image.generate({
         model: openai.image("gpt-image-2"),
         prompt: "A lighthouse",
@@ -268,7 +265,6 @@ describe("Image", () => {
         prompt: "A lighthouse",
         aspect: "16:9",
       })
-      expect(response.notices).toBeUndefined()
     }).pipe(
       Effect.provide(
         layer((input) => {
@@ -737,7 +733,7 @@ describe("Image", () => {
     ),
   )
 
-  it.effect("surfaces filtered Google candidates as notices next to the returned image", () =>
+  it.effect("returns the image next to filtered Google candidates", () =>
     Image.generate({
       model: Google.configure({ apiKey: "test", baseURL: "https://generativelanguage.test/v1beta" }).image(
         "gemini-3.1-flash-image",
@@ -747,25 +743,7 @@ describe("Image", () => {
       Effect.tap((response) =>
         Effect.sync(() => {
           expect(response.images).toHaveLength(1)
-          expect(response.notices).toEqual([
-            {
-              type: "filtered",
-              message: "Google Images reported prompt feedback",
-              providerMetadata: { google: { promptFeedback: { blockReason: "OTHER" } } },
-            },
-            {
-              type: "filtered",
-              message: "Google Images candidate 1 finished with IMAGE_SAFETY: Blocked.",
-              providerMetadata: {
-                google: {
-                  candidateIndex: 1,
-                  finishReason: "IMAGE_SAFETY",
-                  finishMessage: "Blocked.",
-                  safetyRatings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", blocked: true }],
-                },
-              },
-            },
-          ])
+          expect(response.providerMetadata?.google).toMatchObject({ promptFeedback: { blockReason: "OTHER" } })
         }),
       ),
       Effect.provide(
