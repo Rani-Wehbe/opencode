@@ -4,7 +4,7 @@ import { AIError, Decision, DecisionClient, Image, ImageClient, LLM, LLMClient, 
 import type { DecisionRequest, DecisionResult, ImageRequest, ImageResult } from "@opencode/schema/generate"
 import { Money } from "@opencode/schema/money"
 import { SessionID } from "@opencode/schema/session-id"
-import { Context, Effect, Layer, Schedule, Schema } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 import { RequestExecutor } from "@opencode/ai/route"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { llmClient, requestExecutor } from "./effect/app-node-platform.js"
@@ -183,7 +183,7 @@ export const layer = Layer.effect(
         resolution: input.resolution,
       }).pipe(
         Effect.provideService(ImageClient.Service, images),
-        retryRateLimits,
+        ModelRetry.retry,
         Effect.mapError((error) => providerError(input.model, error)),
       )
       // URL results are downloaded so every image comes back inline, like the request's own files.
@@ -219,7 +219,7 @@ export const layer = Layer.effect(
         questions: input.questions,
       }).pipe(
         Effect.provideService(DecisionClient.Service, decisionClient),
-        retryRateLimits,
+        ModelRetry.retry,
         Effect.mapError((error) => providerError(input.model, error)),
       )
       const usage = response.usage
@@ -248,16 +248,6 @@ export const layer = Layer.effect(
     })
   }),
 ).pipe(Layer.provide([ImageClient.layer, DecisionClient.layer]))
-
-// Only a request the provider never accepted is retried: an image or decision call can be billed per attempt.
-const retryRateLimits = <A, R>(effect: Effect.Effect<A, AIError, R>) =>
-  effect.pipe(
-    Effect.retry({
-      schedule: Schedule.exponential("2 seconds"),
-      times: 3,
-      while: (error) => error.reason._tag === "RateLimit",
-    }),
-  )
 
 // Provider metadata may hold undefined fields, which the JSON response schema rejects.
 function plainJson(value: Record<string, unknown>): Record<string, unknown> {
