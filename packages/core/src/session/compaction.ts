@@ -24,7 +24,6 @@ import { Bus } from "../bus.js"
 import { Database } from "../database/database.js"
 import { llmClient } from "../effect/app-node-platform.js"
 import { Model } from "../model.js"
-import { PluginHooks } from "../plugin/hooks.js"
 import { State } from "../state.js"
 import { Token } from "../util/token.js"
 import type { SessionContext } from "./context.js"
@@ -253,7 +252,6 @@ export const layer = Layer.effect(
     const models = yield* SessionRunnerModel.Service
     const db = (yield* Database.Service).db
     const requests = yield* SessionModelRequest.Service
-    const hooks = yield* PluginHooks.Service
 
     const scope = yield* Scope.Scope
     const precomputed = new Map<SessionContext.Loaded["session"]["id"], Precomputed>()
@@ -469,13 +467,11 @@ export const layer = Layer.effect(
       const headings = SUMMARY_TEMPLATE.split("\n").filter((line) => line.startsWith("##"))
       const filled = (text: string) => text.split("\n").some((line) => headings.includes(line.trim()))
       const prepared = yield* prepare(context, messages, budget)
-      // The characters in a conversation overstate its size when the provider drops old reasoning, so the last
-      // response's count sizes the unchanged request instead. A compaction hook can change the request, and an
-      // overflow just proved the count low, so both keep the character estimate.
-      const measured =
-        trigger.reason === "overflow" || (yield* hooks.has("session", "compaction", context.model.ref.providerID))
-          ? undefined
-          : measuredPrompt({ ...context, messages })
+      // Size the unchanged request with the number that decided to compact: the last response's count plus an
+      // estimate of what came after it. Characters overstate a conversation whose old reasoning the provider drops.
+      // A hook can still make this request larger than that count; the provider then rejects it and it is resent as
+      // text. An overflow already proved the count low, so it keeps the character estimate.
+      const measured = trigger.reason === "overflow" ? undefined : measuredPrompt({ ...context, messages })
 
       // Hooks saw the request without the summary prompt, so it is appended here. A reply that ignores the
       // template gets one reminder before it counts as a failure.
@@ -512,7 +508,10 @@ export const layer = Layer.effect(
       // which still reuses the cache for that shorter prefix, and as text otherwise. Dropping exchanges to make room
       // for the tail would leave them in neither the summary nor the tail. Where 15% of the window is under
       // `RESERVE_MIN`, the ceiling equals `summaryRoom`, so automatic compaction always takes this fallback.
-      const fit = trigger.reason === "overflow" ? budget : Math.max(budget, summaryRoom(context.model.limit))
+      const fit =
+        trigger.reason === "overflow"
+          ? budget
+          : Math.max(budget, summaryRoom(context.model.limit, prepared.request.generation?.maxTokens))
       const result = yield* deliver(
         trigger,
         prepared,
@@ -942,16 +941,7 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [
-    Agent.node,
-    Bus.node,
-    Database.node,
-    llmClient,
-    Model.node,
-    PluginHooks.node,
-    SessionModelRequest.node,
-    SessionRunnerModel.node,
-  ],
+  deps: [Agent.node, Bus.node, Database.node, llmClient, Model.node, SessionModelRequest.node, SessionRunnerModel.node],
 })
 
 /**
@@ -1150,9 +1140,12 @@ const calculateCeiling = (limit: SessionContext.Loaded["model"]["limit"], buffer
   return window - Math.max(Math.floor(window * RESERVE_SHARE), window >= 2 * RESERVE_MIN ? RESERVE_MIN : 0)
 }
 
-/** The largest summary request that leaves `RESERVE_MIN` of the window for the summary. Zero for an unknown window. */
-const summaryRoom = (limit: SessionContext.Loaded["model"]["limit"]) =>
-  Math.max(0, (limit.input || limit.context) - RESERVE_MIN)
+/**
+ * The largest summary request that leaves `RESERVE_MIN` of the window for the summary, or less when the request
+ * cannot generate that much. Zero for an unknown window.
+ */
+const summaryRoom = (limit: SessionContext.Loaded["model"]["limit"], output = RESERVE_MIN) =>
+  Math.max(0, (limit.input || limit.context) - Math.min(RESERVE_MIN, output))
 
 /**
  * Another provider's count may describe a native window this model cannot replay. History then holds the original

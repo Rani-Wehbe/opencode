@@ -1108,7 +1108,29 @@ it.effect("summary measured recovery shrinks from the rejected measured size", (
   }),
 )
 
-it.effect("summary sizes by characters when a compaction hook can change the request", () =>
+it.effect("summary cache prefix survives hooks that shape every request alike", () =>
+  Effect.gen(function* () {
+    const fixture = yield* summaryFixture([
+      textUser("Earlier question"),
+      oldReasoning(),
+      textUser("Latest question"),
+      measured("Latest answer", summaryInput),
+    ])
+    // Built-in tool plugins register one hook for both normal and compaction requests.
+    const hooks = yield* PluginHooks.Service
+    const describe = (event: { tools: Record<string, { description: string }> }) =>
+      Effect.sync(() => {
+        if (event.tools.read) event.tools.read.description = "Read files from the project"
+      })
+    yield* hooks.register("session", "context", describe)
+    yield* hooks.register("session", "compaction", describe)
+    expect(yield* fixture.run()).toEqual({ status: "completed" })
+    expect(requests).toHaveLength(1)
+    expect(requests[0].tools.map((tool) => tool.description)).toEqual(["Read files from the project"])
+  }),
+)
+
+it.effect("summary resends as text when a hook makes the request larger than the measured count", () =>
   Effect.gen(function* () {
     const fixture = yield* summaryFixture([
       textUser("Earlier question"),
@@ -1117,11 +1139,22 @@ it.effect("summary sizes by characters when a compaction hook can change the req
       measured("Latest answer", summaryInput),
     ])
     const hooks = yield* PluginHooks.Service
-    yield* hooks.register("session", "compaction", () => Effect.void)
+    yield* hooks.register("session", "compaction", (event) =>
+      Effect.sync(() => {
+        event.system.push({ type: "text", text: "Plugin guidance" })
+      }),
+    )
+    // The provider rejects the unchanged request, which the measured count said would fit.
+    reject = (request) => request.tools.length > 0
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        reject = undefined
+      }),
+    )
     expect(yield* fixture.run()).toEqual({ status: "completed" })
-    expect(requests).toHaveLength(1)
-    // The old reasoning counts at full length, so the request no longer fits and is flattened.
-    expect(requests[0].tools).toEqual([])
+    expect(requests).toHaveLength(2)
+    expect(requests[0].tools).toEqual(fixture.context.tools.definitions)
+    expect(requests[1].tools).toEqual([])
   }),
 )
 
