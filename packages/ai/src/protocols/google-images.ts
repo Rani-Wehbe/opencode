@@ -188,6 +188,11 @@ const decodeResponse = Effect.fn("GoogleImages.decodeResponse")(function* (
     const finishReasons = candidates.flatMap((candidate) =>
       candidate.finishReason === undefined ? [] : [candidate.finishReason],
     )
+    // Safety and recitation stops are Google refusing the prompt, not a malformed response.
+    if (finishReasons.some(GeminiGenerateContent.contentFiltered))
+      return yield* output.contentPolicy(
+        `${route.name} withheld its images (finish reasons: ${finishReasons.join(", ")})`,
+      )
     return yield* output.invalid(
       `${route.name} returned no final images${
         finishReasons.length === 0 ? "" : ` (finish reasons: ${finishReasons.join(", ")})`

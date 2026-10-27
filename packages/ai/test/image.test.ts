@@ -800,7 +800,7 @@ describe("Image", () => {
     ),
   )
 
-  it.effect("includes Google diagnostics when no final image is returned", () =>
+  it.effect("reports a Google safety stop as a content policy refusal, with its diagnostics", () =>
     Image.generate({
       model: Google.configure({ apiKey: "test", baseURL: "https://generativelanguage.test/v1beta" }).image(
         "gemini-3.1-flash-image",
@@ -810,8 +810,8 @@ describe("Image", () => {
       Effect.flip,
       Effect.tap((error) =>
         Effect.sync(() => {
-          expect(error.reason._tag).toBe("InvalidProviderOutput")
-          if (error.reason._tag !== "InvalidProviderOutput") return
+          expect(error.reason._tag).toBe("ContentPolicy")
+          if (error.reason._tag !== "ContentPolicy") return
           expect(error.message).toContain("finish reasons: IMAGE_SAFETY")
           expect(JSON.parse(error.reason.body ?? "")).toEqual({
             promptFeedback: { blockReason: "SAFETY" },
