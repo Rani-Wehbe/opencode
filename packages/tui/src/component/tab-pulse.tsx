@@ -1,4 +1,13 @@
-import { OptimizedBuffer, Renderable, RGBA, type RenderableOptions, type RenderContext } from "@opentui/core"
+import {
+  CliRenderer,
+  OptimizedBuffer,
+  Renderable,
+  RGBA,
+  type Clock,
+  type RenderableOptions,
+  type RenderContext,
+  type TimerHandle,
+} from "@opentui/core"
 import { extend } from "@opentui/solid"
 
 type TabPulseOptions = RenderableOptions<TabPulseRenderable> & {
@@ -32,6 +41,8 @@ type TabPulseOptions = RenderableOptions<TabPulseRenderable> & {
 export const clamp = (value: number) => Math.max(0, Math.min(1, value))
 export const smootherstep = (value: number) => value * value * value * (value * (value * 6 - 15) + 10)
 const RUN_DURATION = 2_800
+// Animating pulses request frames at this cadence instead of going live, matching the tab spinner.
+const PULSE_INTERVAL = 80
 const RUN_ATTACK = 450
 const RUN_HEAD = 4
 const RUN_TAIL = 18
@@ -418,7 +429,12 @@ class PulseState {
   }
 }
 
+// Not live: a live node keeps the renderer running at its target frame rate for as long as any
+// session is busy, even when the visible tab is idle. A timer requests each animating frame
+// instead, so the renderer idles between frames and stops entirely once the envelopes settle.
 class TabPulseRenderable extends Renderable {
+  private readonly clock: Clock
+  private timer: TimerHandle | undefined
   private _enabled: boolean
   private inner: PulseState
   private outer: PulseState
@@ -442,6 +458,7 @@ class TabPulseRenderable extends Renderable {
   private lastLevel = 0
 
   constructor(ctx: RenderContext, options: TabPulseOptions = {}) {
+    if (!(ctx instanceof CliRenderer)) throw new Error("TabPulse requires a renderer clock")
     const enabled = options.enabled ?? true
     const active = options.active ?? false
     const glow = options.glow ?? false
@@ -451,8 +468,8 @@ class TabPulseRenderable extends Renderable {
     super(ctx, {
       ...options,
       height: 1,
-      live: enabled && (active || (edge !== undefined && outerActive)),
     })
+    this.clock = ctx.clock
     this._enabled = enabled
     this.inner = new PulseState({
       enabled,
@@ -502,7 +519,6 @@ class TabPulseRenderable extends Renderable {
     this._enabled = value
     this.inner.setEnabled(value)
     this.outer.setEnabled(value && this._edge !== undefined)
-    this.live = this.inner.live || this.outer.live
     this.requestRender()
   }
 
@@ -539,7 +555,6 @@ class TabPulseRenderable extends Renderable {
   }
 
   private changed() {
-    this.live = this.inner.live || this.outer.live
     this.requestRender()
   }
 
@@ -583,7 +598,6 @@ class TabPulseRenderable extends Renderable {
     if (value === this._edge) return
     this._edge = value
     this.outer.setEnabled(this._enabled && value !== undefined)
-    this.live = this.inner.live || this.outer.live
     this.requestRender()
   }
 
@@ -630,10 +644,26 @@ class TabPulseRenderable extends Renderable {
   }
 
   protected override onUpdate(deltaTime: number): void {
-    if (!this.live) return
-    this.inner.advance(deltaTime)
-    this.outer.advance(deltaTime)
-    this.live = this.inner.live || this.outer.live
+    if (this.inner.live || this.outer.live) {
+      this.inner.advance(deltaTime)
+      this.outer.advance(deltaTime)
+    }
+    if (!this.inner.live && !this.outer.live) {
+      this.stop()
+      return
+    }
+    // Core skips onUpdate for hidden and culled nodes, so the timer chain stops with them.
+    if (this.timer !== undefined) return
+    this.timer = this.clock.setTimeout(() => {
+      this.timer = undefined
+      this.requestRender()
+    }, PULSE_INTERVAL)
+  }
+
+  private stop() {
+    if (this.timer === undefined) return
+    this.clock.clearTimeout(this.timer)
+    this.timer = undefined
   }
 
   protected override renderSelf(buffer: OptimizedBuffer): void {
@@ -744,6 +774,11 @@ class TabPulseRenderable extends Renderable {
         this.outerRenderColor,
       )
     }
+  }
+
+  protected override destroySelf() {
+    this.stop()
+    super.destroySelf()
   }
 }
 

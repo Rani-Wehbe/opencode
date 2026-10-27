@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test"
 /** @jsxImportSource @opentui/solid */
 import { RGBA } from "@opentui/core"
+import { ManualClock } from "@opentui/core/testing"
 import { testRender } from "@opentui/solid"
-import { createSignal } from "solid-js"
+import { createSignal, Show } from "solid-js"
 import {
   TabPulse,
   blendTabPulseColor,
@@ -33,19 +34,82 @@ test("a disabled pulse stays idle when it becomes active", async () => {
   }
 })
 
-test("an attention glow becomes idle after ignition", async () => {
+test("an attention glow never pins the renderer and settles on its own timer", async () => {
+  const clock = new ManualClock()
   const background = RGBA.fromHex("#101010")
   const app = await testRender(
     () => <TabPulse active={false} glow color={RGBA.fromHex("#ffcc00")} backgroundColor={background} />,
-    { width: 8, height: 1 },
+    { width: 8, height: 1, clock },
   )
 
   try {
     await app.renderOnce()
-    expect(app.renderer.root.liveCount).toBe(1)
-    await Bun.sleep(650)
+    expect(app.renderer.root.liveCount).toBe(0)
+    // The ignition runs for 600ms; each armed timer tick renders one step, then the chain stops.
+    for (let elapsed = 0; elapsed < 600; elapsed += 80) {
+      expect(clock.pendingTimerCount).toBe(1)
+      clock.advance(80)
+      await app.renderOnce()
+    }
+    expect(app.renderer.root.liveCount).toBe(0)
+    expect(clock.pendingTimerCount).toBe(0)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("a running sweep requests frames while busy and stops once the session finishes", async () => {
+  const clock = new ManualClock()
+  const background = RGBA.fromHex("#101010")
+  const [active, setActive] = createSignal(true)
+  const app = await testRender(
+    () => <TabPulse active={active()} color={background} backgroundColor={background} />,
+    { width: 8, height: 1, clock },
+  )
+
+  try {
     await app.renderOnce()
     expect(app.renderer.root.liveCount).toBe(0)
+    // The sweep holds sustain while the session runs, so every tick re-arms the next frame.
+    for (let elapsed = 0; elapsed < 560; elapsed += 80) {
+      expect(clock.pendingTimerCount).toBe(1)
+      clock.advance(80)
+      await app.renderOnce()
+    }
+    // Finishing releases the sweep and flashes the edge; the chain stops when both settle.
+    setActive(false)
+    await app.renderOnce()
+    expect(clock.pendingTimerCount).toBe(1)
+    for (let elapsed = 0; elapsed < 800; elapsed += 80) {
+      clock.advance(80)
+      await app.renderOnce()
+    }
+    expect(clock.pendingTimerCount).toBe(0)
+    expect(app.renderer.root.liveCount).toBe(0)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("unmounting a running pulse releases its pending frame", async () => {
+  const clock = new ManualClock()
+  const background = RGBA.fromHex("#101010")
+  const [shown, setShown] = createSignal(true)
+  const app = await testRender(
+    () => (
+      <Show when={shown()}>
+        <TabPulse active color={background} backgroundColor={background} />
+      </Show>
+    ),
+    { width: 8, height: 1, clock },
+  )
+
+  try {
+    await app.renderOnce()
+    expect(clock.pendingTimerCount).toBe(1)
+    setShown(false)
+    await app.renderOnce()
+    expect(clock.pendingTimerCount).toBe(0)
   } finally {
     app.renderer.destroy()
   }
