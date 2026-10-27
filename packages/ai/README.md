@@ -55,22 +55,18 @@ Anthropic Messages, Gemini, Bedrock Converse, and any OpenAI-compatible deployme
 `stream` runs one model call; `loop` runs the model's tool calls and calls the model again until it stops calling
 tools. Events from every step arrive on one stream, with a `tool-result` after each tool runs. `until` is checked
 after each step that has tool calls, with every step's `LLMResponse`; returning `true` ends the loop without running
-them:
+them. `AI.tool` takes a plain `async` execute; a throw or rejection goes back to the model as an error result.
+`Tool.make` from `@opencode/ai/effect` is the Effect form, with a validated `success` schema:
 
 ```ts
 import { readFile } from "node:fs/promises"
-import { Effect, Schema } from "effect"
-import { Tool, ToolFailure } from "@opencode/ai/effect"
+import { Schema } from "effect"
+import { AI } from "@opencode/ai"
 
-const read_file = Tool.make({
+const read_file = AI.tool({
   description: "Read a UTF-8 file.",
   parameters: Schema.Struct({ path: Schema.String }),
-  success: Schema.String,
-  execute: ({ path }) =>
-    Effect.tryPromise({
-      try: () => readFile(path, "utf8"),
-      catch: (error) => new ToolFailure({ message: `Failed to read ${path}`, error }),
-    }),
+  execute: ({ path }) => readFile(path, "utf8"),
 })
 
 const events = ai.llm.loop({
@@ -82,6 +78,19 @@ const events = ai.llm.loop({
 for await (const event of events) {
   if (event.type === "text-delta") process.stdout.write(event.text)
 }
+```
+
+### Structured output
+
+`generateObject` forces a tool call and decodes its input against `schema`; pass `jsonSchema` instead for an
+unvalidated `unknown` object:
+
+```ts
+const { object } = await ai.llm.generateObject({
+  model,
+  prompt: "Pick a city.",
+  schema: Schema.Struct({ city: Schema.String }),
+})
 ```
 
 ### Raw provider events
