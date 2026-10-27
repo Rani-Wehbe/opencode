@@ -3,7 +3,7 @@ import type { HttpClientResponse } from "effect/http"
 import { ImageModel, ImageResponse, type ImageRequestFor } from "../image.js"
 import { MediaProtocol } from "../route/media-protocol.js"
 import { MediaRoute } from "../route/media.js"
-import { mergeJsonRecords, type OpenString } from "../schema/index.js"
+import { mergeJsonRecords, tokenUsage, type OpenString } from "../schema/index.js"
 import { ProviderShared } from "./shared.js"
 import { GeminiGenerateContent } from "./utils/gemini-generate-content.js"
 import { MediaInput } from "./utils/media-input.js"
@@ -235,8 +235,7 @@ const decodeResponse = Effect.fn("GoogleImages.decodeResponse")(function* (
     usage:
       usage === undefined
         ? undefined
-        : {
-            type: "tokens",
+        : tokenUsage({
             input: usage.promptTokenCount,
             output: outputTokens,
             total: ProviderShared.totalTokens(usage.promptTokenCount, outputTokens, usage.totalTokenCount),
@@ -245,7 +244,7 @@ const decodeResponse = Effect.fn("GoogleImages.decodeResponse")(function* (
               cacheReadInputTokens: usage.cachedContentTokenCount,
               google: usage,
             },
-          },
+          }),
     providerMetadata: {
       google: {
         modelVersion: decoded.modelVersion,

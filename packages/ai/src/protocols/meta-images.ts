@@ -4,7 +4,7 @@ import { ImageModel, ImageResponse, type ImageRequestFor } from "../image.js"
 import { Media } from "../media.js"
 import { MediaProtocol } from "../route/media-protocol.js"
 import { MediaRoute } from "../route/media.js"
-import { mergeJsonRecords, type OpenString } from "../schema/index.js"
+import { mergeJsonRecords, tokenUsage, type OpenString } from "../schema/index.js"
 import { JsonObject, ProviderShared, optionalNull } from "./shared.js"
 import { ImageSizing } from "./utils/image-sizing.js"
 import { MediaInput } from "./utils/media-input.js"
@@ -139,13 +139,12 @@ const decodeResponse = Effect.fn("MetaImages.decodeResponse")(function* (
     usage:
       decoded.usage === undefined
         ? undefined
-        : {
-            type: "tokens",
+        : tokenUsage({
             input: decoded.usage.input_tokens,
             output: decoded.usage.output_tokens,
             total: decoded.usage.total_tokens,
             details: { meta: decoded.usage },
-          },
+          }),
     providerMetadata: { meta: { outputFormat: format } },
   })
 })

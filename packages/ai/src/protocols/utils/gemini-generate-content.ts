@@ -3,7 +3,14 @@ import type { Tool } from "@opencode/schema/tool"
 import { Media } from "../../media.js"
 import { Framing } from "../../route/framing.js"
 import type { MediaProtocol } from "../../route/media-protocol.js"
-import { AIError, ContentPolicyError, ProviderID, type MediaUsage, type ProviderMetadata } from "../../schema/index.js"
+import {
+  AIError,
+  ContentPolicyError,
+  ProviderID,
+  tokenUsage,
+  type MediaUsage,
+  type ProviderMetadata,
+} from "../../schema/index.js"
 import { ProviderShared } from "../shared.js"
 import { MediaInput } from "./media-input.js"
 
@@ -114,13 +121,12 @@ export const notices = (name: string, state: Metadata): ReadonlyArray<Media.Noti
 export const usage = (usage: UsageMetadata | undefined): MediaUsage | undefined =>
   usage === undefined
     ? undefined
-    : {
-        type: "tokens",
+    : tokenUsage({
         input: usage.promptTokenCount,
         output: usage.candidatesTokenCount,
         total: ProviderShared.totalTokens(usage.promptTokenCount, usage.candidatesTokenCount, usage.totalTokenCount),
         details: { google: usage },
-      }
+      })
 
 export const providerMetadata = (state: Metadata): ProviderMetadata => ({
   google: { finishReason: state.finishReason, modelVersion: state.modelVersion, responseId: state.responseId },

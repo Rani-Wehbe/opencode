@@ -12,7 +12,7 @@ import { classifyProviderFailure } from "../provider-error.js"
 import { Framing } from "../route/framing.js"
 import { MediaProtocol } from "../route/media-protocol.js"
 import { MediaRoute } from "../route/media.js"
-import { AIError, mergeJsonRecords, ProviderID, type MediaUsage, type OpenString } from "../schema/index.js"
+import { AIError, mergeJsonRecords, ProviderID, tokenUsage, type MediaUsage, type OpenString } from "../schema/index.js"
 import { ProviderShared } from "./shared.js"
 import { ImageSizing } from "./utils/image-sizing.js"
 import { MediaInput } from "./utils/media-input.js"
@@ -250,13 +250,12 @@ const fromRequest = Effect.fn("OpenAIImages.fromRequest")(function* (request: Me
 const usage = (value: Schema.Schema.Type<typeof Usage> | undefined, provider: ProviderID): MediaUsage | undefined =>
   value === undefined
     ? undefined
-    : {
-        type: "tokens",
+    : tokenUsage({
         input: value.input_tokens,
         output: value.output_tokens,
         total: value.total_tokens,
         details: { [provider]: value },
-      }
+      })
 
 /** `size` echoes the rendered `WIDTHxHEIGHT`; `auto` or any other value leaves the dimensions unknown. */
 const info = (format: string | undefined, size: string | undefined): Media.Info => {
