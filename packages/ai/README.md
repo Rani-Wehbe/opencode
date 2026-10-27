@@ -55,7 +55,8 @@ Anthropic Messages, Gemini, Bedrock Converse, and any OpenAI-compatible deployme
 `stream` runs one model call; `loop` runs the model's tool calls and calls the model again until it stops calling
 tools. Events from every step arrive on one stream, with a `tool-result` after each tool runs. `until` is checked
 after each step that has tool calls, with every step's `LLMResponse`; returning `true` ends the loop without running
-them. `AI.tool` takes a plain `async` execute; a throw or rejection goes back to the model as an error result.
+them. `AI.tool` takes a plain `async` execute; a throw or rejection goes back to the model as an error result, and
+`signal` aborts when the loop is interrupted.
 `Tool.make` from `@opencode/ai/effect` is the Effect form, with a validated `success` schema:
 
 ```ts
@@ -66,7 +67,7 @@ import { AI } from "@opencode/ai"
 const read_file = AI.tool({
   description: "Read a UTF-8 file.",
   parameters: Schema.Struct({ path: Schema.String }),
-  execute: ({ path }) => readFile(path, "utf8"),
+  execute: ({ path }, { signal }) => readFile(path, { encoding: "utf8", signal }),
 })
 
 const events = ai.llm.loop({

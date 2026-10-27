@@ -240,13 +240,16 @@ const fileError = (message: string, cause: unknown) =>
   new AIError({ reason: new InvalidRequestError({ message, cause }) })
 
 /**
- * Promise counterpart of `Tool.make` for `ai.llm.loop`. A throw or rejection becomes the error result the model sees, and
- * the returned value is sent unvalidated.
+ * Promise counterpart of `Tool.make` for `ai.llm.loop`. A throw or rejection becomes the error result the model sees, the
+ * returned value is sent unvalidated (`undefined` as `null`), and `signal` aborts when the loop is interrupted.
  */
 export const tool = <Parameters extends ToolSchema<any>>(config: {
   readonly description: string
   readonly parameters: Parameters
-  readonly execute: (params: Schema.Schema.Type<Parameters>, context?: ToolExecuteContext) => unknown
+  readonly execute: (
+    params: Schema.Schema.Type<Parameters>,
+    context: Partial<ToolExecuteContext> & { readonly signal: AbortSignal },
+  ) => unknown
 }) =>
   Tool.make({
     description: config.description,
@@ -254,7 +257,7 @@ export const tool = <Parameters extends ToolSchema<any>>(config: {
     success: Schema.Unknown,
     execute: (params, context) =>
       Effect.tryPromise({
-        try: async () => config.execute(params, context),
+        try: async (signal) => (await config.execute(params, { ...context, signal })) ?? null,
         catch: (error) => new ToolFailure({ message: error instanceof Error ? error.message : String(error), error }),
       }),
   })

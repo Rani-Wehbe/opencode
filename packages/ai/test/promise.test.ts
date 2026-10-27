@@ -402,6 +402,7 @@ describe("AI promise client", () => {
                   ? sseEvents(
                       toolCallChunk("call-1", "read_file", JSON.stringify({ path: "a.txt" })),
                       toolCallChunk("call-2", "read_file", JSON.stringify({ path: "missing.txt" }), 1),
+                      toolCallChunk("call-3", "read_file", JSON.stringify({ path: "empty.txt" }), 2),
                       finishChunk("tool_calls"),
                     )
                   : chatBody,
@@ -417,6 +418,7 @@ describe("AI promise client", () => {
       parameters: Schema.Struct({ path: Schema.String }),
       execute: async ({ path }) => {
         if (path === "missing.txt") throw new Error(`No such file: ${path}`)
+        if (path === "empty.txt") return
         return "hello"
       },
     })
@@ -428,10 +430,12 @@ describe("AI promise client", () => {
     expect(events.filter(LLMEvent.is.toolResult).map((event) => event.result)).toEqual([
       { type: "text", value: "hello" },
       { type: "error", value: "No such file: missing.txt" },
+      { type: "json", value: null },
     ])
     expect(JSON.parse(bodies[1]).messages.filter((message: { role: string }) => message.role === "tool")).toEqual([
       expect.objectContaining({ tool_call_id: "call-1", content: "hello" }),
       expect.objectContaining({ tool_call_id: "call-2", content: "No such file: missing.txt" }),
+      expect.objectContaining({ tool_call_id: "call-3", content: "null" }),
     ])
     expect(events.filter(LLMEvent.is.textDelta).map((event) => event.text)).toEqual(["Hello", " world"])
     await ai.dispose()
